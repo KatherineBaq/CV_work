@@ -18,12 +18,15 @@ def convert_to_pdf(input_docx: str, output_pdf: str) -> None:
 
 def main():
     # templates = ["template1.docx", "template2.docx", "template3.docx"]
-    templates = ["template1.docx"]
-    data_path = "input_data.json"
+    templates = ["template1.docx", "template2.docx"]
+    data_path = "optimized_input_data.json"
+    print(f'input data path: {data_path}')
+
     out_dir = "out"
     Path(out_dir).mkdir(exist_ok=True)
 
     context = load_context(data_path)
+    print(context.keys())
 
     for i, tpl in enumerate(templates, start=1):
         tpl_path = Path(tpl)
