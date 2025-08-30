@@ -1,0 +1,99 @@
+.cv-uploader {
+  text-align: center;
+}
+
+.cv-uploader h2 {
+  margin-bottom: 10px;
+}
+
+.cv-uploader p {
+  margin-bottom: 30px;
+  color: #666;
+}
+
+.drop-area {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.drop-area.dragging {
+  border-color: #4caf50;
+  background-color: rgba(76, 175, 80, 0.05);
+}
+
+.drop-area.has-file {
+  border-color: #4caf50;
+  background-color: rgba(76, 175, 80, 0.05);
+}
+
+.file-input {
+  display: none;
+}
+
+.file-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+
+.upload-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+
+.upload-text {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.browse {
+  color: #4caf50;
+  text-decoration: underline;
+}
+
+.file-hint {
+  font-size: 14px;
+  color: #999;
+}
+
+.file-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.change-file {
+  color: #4caf50;
+  text-decoration: underline;
+  font-size: 14px;
+}
+
+.error-message {
+  color: #f44336;
+  margin-bottom: 20px;
+}
+
+.primary-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.primary-button:hover {
+  background-color: #45a049;
+}
+
+.primary-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
