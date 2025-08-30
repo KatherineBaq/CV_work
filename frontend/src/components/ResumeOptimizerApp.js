@@ -1,57 +1,68 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, Zap, Download, CheckCircle, AlertCircle, Clock, ArrowRight } from 'lucide-react';
 
-// Mock API Service Module (for demonstration purposes)
-// In a real app, this would connect to your backend API
+// API Service Module
+const API_BASE_URL = 'http://localhost:8000/api';
+
 const apiService = {
   uploadCV: async (file) => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const formData = new FormData();
+    formData.append('cv_file', file);
     
-    // Mock successful response
-    return {
-      cv_id: 'mock-cv-' + Date.now(),
-      message: 'CV uploaded successfully'
-    };
+    const response = await fetch(`${API_BASE_URL}/upload-cv`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to upload CV');
+    }
+    
+    return await response.json();
   },
 
   analyzeJob: async (jobDescription, cvId) => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const response = await fetch(`${API_BASE_URL}/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cv_id: cvId,
+        job_description: jobDescription,
+      }),
+    });
     
-    // Mock successful response
-    return {
-      analysis_id: 'mock-analysis-' + Date.now(),
-      overall_match: Math.floor(60 + Math.random() * 30),  // Random score between 60-90
-      skills_match: Math.floor(50 + Math.random() * 40),   // Random score between 50-90
-      experience_match: Math.floor(60 + Math.random() * 35), // Random score between 60-95
-      recommendations: [
-        'Highlight your experience with ' + (jobDescription.includes('React') ? 'React' : 'frontend development'),
-        'Add more details about your ' + (jobDescription.includes('team') ? 'team leadership' : 'project management') + ' experience',
-        'Include keywords related to ' + (jobDescription.includes('agile') ? 'agile methodologies' : 'development processes')
-      ],
-      // New fields for missing skills
-      overall_analysis: "Your profile shows strong " + 
-        (jobDescription.toLowerCase().includes('react') ? 'React' : 'frontend development') + 
-        " skills but lacks experience with key " + 
-        (jobDescription.toLowerCase().includes('data') ? 'data platform' : 
-         jobDescription.toLowerCase().includes('cloud') ? 'cloud' : 'modern framework') + 
-        " technologies required for this position.",
-      missing_skills: jobDescription.toLowerCase().includes('data') ? 
-        ["Microsoft Fabric", "Medallion Architecture", "Azure Synapse Analytics"] :
-        jobDescription.toLowerCase().includes('react') ?
-          ["Next.js", "GraphQL", "React Server Components"] :
-          ["CI/CD Pipeline Experience", "Docker", "Kubernetes"]
-    };
+    if (!response.ok) {
+      throw new Error('Failed to analyze job');
+    }
+    
+    return await response.json();
   },
 
-  generateOptimizedResume: async (analysisId, answers) => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2500));
+  generateOptimizedResume: async (analysisId, confirmedSkills) => {
+    const response = await fetch(`${API_BASE_URL}/generate-resume`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        analysis_id: analysisId,
+        confirmed_skills: confirmedSkills,
+      }),
+    });
     
-    // Create a simple PDF blob (in a real app, this would be an actual optimized resume)
-    const pdfBlob = new Blob(['Mock optimized resume PDF content'], { type: 'application/pdf' });
-    return pdfBlob;
+    if (!response.ok) {
+      throw new Error('Failed to generate resume');
+    }
+    
+    const data = await response.json();
+    
+    const jsonBlob = new Blob([JSON.stringify(data.cv_data, null, 2)], { 
+      type: 'application/json' 
+    });
+    
+    return jsonBlob;
   }
 };
 
@@ -177,15 +188,15 @@ const ResultsDisplay = ({ results, onAnswerSubmit, isGenerating }) => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <div className="text-3xl font-bold text-blue-600">{results.overall_match || '85'}%</div>
+            <div className="text-3xl font-bold text-blue-600">{results.overall_match || 85}%</div>
             <div className="text-gray-600">Overall Match</div>
           </div>
           <div className="text-center p-4 bg-green-50 rounded-lg">
-            <div className="text-3xl font-bold text-green-600">{results.skills_match || '78'}%</div>
+            <div className="text-3xl font-bold text-green-600">{results.skills_match || 78}%</div>
             <div className="text-gray-600">Skills Match</div>
           </div>
           <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <div className="text-3xl font-bold text-purple-600">{results.experience_match || '92'}%</div>
+            <div className="text-3xl font-bold text-purple-600">{results.experience_match || 92}%</div>
             <div className="text-gray-600">Experience Match</div>
           </div>
         </div>
@@ -228,7 +239,8 @@ const ResultsDisplay = ({ results, onAnswerSubmit, isGenerating }) => {
               <div className="flex-grow">
                 <p className="font-medium text-gray-800">{skill}</p>
               </div>
-              <div>
+              <div className="flex items-center space-x-2">
+                <label htmlFor={`skill-${index}`} className="text-sm text-gray-600">I have this skill</label>
                 <input
                   type="checkbox"
                   id={`skill-${index}`}
@@ -284,7 +296,7 @@ const SuccessScreen = ({ onDownload, onStartOver }) => (
         className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center"
       >
         <Download className="w-5 h-5 mr-2" />
-        Download Optimized Resume
+        Download Optimized Resume JSON
       </button>
       
       <button
@@ -292,72 +304,6 @@ const SuccessScreen = ({ onDownload, onStartOver }) => (
         className="w-full border border-gray-300 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
       >
         Optimize Another Resume
-      </button>
-    </div>
-  </div>
-);
-
-// Template Selector Component
-const TemplateSelector = ({ templates, selectedTemplate, onSelect, onSubmit, isGenerating }) => (
-  <div className="max-w-4xl mx-auto">
-    <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">
-      Choose a Resume Template
-    </h2>
-    
-    <p className="text-gray-600 text-center mb-8">
-      Select a template that best represents your professional style
-    </p>
-    
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-      {templates.map(template => (
-        <div 
-          key={template.id}
-          onClick={() => onSelect(template.id)}
-          className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
-            selectedTemplate === template.id 
-              ? 'border-blue-500 bg-blue-50 shadow-md' 
-              : 'border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          <div className="aspect-w-4 aspect-h-3 mb-4 overflow-hidden rounded-md bg-gray-100">
-            <img 
-              src={template.thumbnailUrl} 
-              alt={template.name} 
-              className="w-full h-full object-cover"
-            />
-          </div>
-          
-          <h3 className="font-semibold text-lg mb-1">
-            {template.name}
-            {selectedTemplate === template.id && (
-              <CheckCircle className="w-5 h-5 text-blue-500 inline ml-2" />
-            )}
-          </h3>
-          
-          <p className="text-gray-600 text-sm">
-            {template.description}
-          </p>
-        </div>
-      ))}
-    </div>
-    
-    <div className="flex justify-center">
-      <button
-        onClick={onSubmit}
-        disabled={isGenerating}
-        className="bg-blue-600 text-white py-3 px-8 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center"
-      >
-        {isGenerating ? (
-          <>
-            <Clock className="w-5 h-5 animate-spin mr-2" />
-            Generating Resume...
-          </>
-        ) : (
-          <>
-            <FileText className="w-5 h-5 mr-2" />
-            Generate With This Template
-          </>
-        )}
       </button>
     </div>
   </div>
@@ -372,17 +318,15 @@ const ResumeOptimizerApp = () => {
   const [cvId, setCvId] = useState(null);
   const [analysisId, setAnalysisId] = useState(null);
   const [optimizedResumeBlob, setOptimizedResumeBlob] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState('professional');
-  const [availableTemplates, setAvailableTemplates] = useState([]);
+  const [userConfirmedSkills, setUserConfirmedSkills] = useState([]);
   
   // Loading states
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [error, setError] = useState(null);
 
-  const steps = ['Upload CV', 'Job Description', 'Analysis & Questions', 'Choose Template', 'Download Resume'];
+  const steps = ['Upload CV', 'Job Description', 'Analysis & Questions', 'Download Resume'];
 
   const handleFileSelect = (file) => {
     setSelectedFile(file);
@@ -399,6 +343,7 @@ const ResumeOptimizerApp = () => {
       setCurrentStep(1);
     } catch (err) {
       setError('Failed to upload CV. Please try again.');
+      console.error('Upload error:', err);
     } finally {
       setIsUploading(false);
     }
@@ -418,71 +363,34 @@ const ResumeOptimizerApp = () => {
       setCurrentStep(2);
     } catch (err) {
       setError('Failed to analyze job. Please try again.');
+      console.error('Analysis error:', err);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   const handleAnswerSubmit = async (answers) => {
-    setIsLoadingTemplates(true);
-    try {
-      // In a real app, fetch available templates from the backend
-      // Here we'll simulate it with mock data
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setAvailableTemplates([
-        {
-          id: 'professional',
-          name: 'Professional',
-          description: 'A clean, professional template with a traditional layout',
-          thumbnailUrl: 'https://via.placeholder.com/150?text=Professional'
-        },
-        {
-          id: 'modern',
-          name: 'Modern',
-          description: 'A contemporary design with bold elements and creative layout',
-          thumbnailUrl: 'https://via.placeholder.com/150?text=Modern'
-        },
-        {
-          id: 'technical',
-          name: 'Technical',
-          description: 'Optimized for technical roles with focus on skills and projects',
-          thumbnailUrl: 'https://via.placeholder.com/150?text=Technical'
-        },
-        {
-          id: 'executive',
-          name: 'Executive',
-          description: 'Elegant design for senior roles focusing on leadership and achievements',
-          thumbnailUrl: 'https://via.placeholder.com/150?text=Executive'
-        }
-      ]);
-      
-      // Move to template selection step
-      setCurrentStep(3);
-    } catch (err) {
-      setError('Failed to load resume templates. Please try again.');
-    } finally {
-      setIsLoadingTemplates(false);
-    }
-  };
-  
-  const handleTemplateSelect = (templateId) => {
-    setSelectedTemplate(templateId);
-  };
-  
-  const handleGenerateResume = async () => {
+    // Convert checkbox answers to confirmed skills array
+    const confirmedSkills = Object.keys(answers)
+      .filter(key => answers[key] === true)
+      .map(key => {
+        const index = parseInt(key.split('-')[1]);
+        return (results.missing_skills || [])[index];
+      })
+      .filter(skill => skill);
+
     setIsGenerating(true);
     try {
-      // In a real app, pass the selected template to the backend
-      const resumeBlob = await apiService.generateOptimizedResume(analysisId, {
-        template: selectedTemplate,
-        // Include other data that might be needed
-        // ...other parameters
-      });
+      // Store confirmed skills for later use
+      setUserConfirmedSkills(confirmedSkills);
+      
+      // Generate optimized resume
+      const resumeBlob = await apiService.generateOptimizedResume(analysisId, confirmedSkills);
       setOptimizedResumeBlob(resumeBlob);
-      setCurrentStep(4);
+      setCurrentStep(3); // Go to success screen
     } catch (err) {
       setError('Failed to generate resume. Please try again.');
+      console.error('Generation error:', err);
     } finally {
       setIsGenerating(false);
     }
@@ -493,7 +401,7 @@ const ResumeOptimizerApp = () => {
       const url = URL.createObjectURL(optimizedResumeBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'optimized_resume.pdf';
+      a.download = 'optimized_resume_data.json';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -509,6 +417,7 @@ const ResumeOptimizerApp = () => {
     setCvId(null);
     setAnalysisId(null);
     setOptimizedResumeBlob(null);
+    setUserConfirmedSkills([]);
     setError(null);
   };
 
@@ -534,6 +443,12 @@ const ResumeOptimizerApp = () => {
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
             <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
             <span className="text-red-700">{error}</span>
+            <button 
+              onClick={() => setError(null)}
+              className="ml-auto text-red-500 hover:text-red-700"
+            >
+              ×
+            </button>
           </div>
         )}
 
@@ -569,10 +484,10 @@ const ResumeOptimizerApp = () => {
               {jobDescription && (
                 <button
                   onClick={handleJobAnalysis}
-                  disabled={isAnalyzing}
+                  disabled={isAnalyzing || jobDescription.trim().length < 50}
                   className="mt-6 bg-blue-600 text-white py-3 px-8 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  Analyze Job Match
+                  {isAnalyzing ? 'Analyzing...' : 'Analyze Job Match'}
                 </button>
               )}
             </div>
@@ -585,18 +500,8 @@ const ResumeOptimizerApp = () => {
               isGenerating={isGenerating}
             />
           )}
-
-          {currentStep === 3 && (
-            <TemplateSelector 
-              templates={availableTemplates}
-              selectedTemplate={selectedTemplate}
-              onSelect={handleTemplateSelect}
-              onSubmit={handleGenerateResume}
-              isGenerating={isGenerating}
-            />
-          )}
           
-          {currentStep === 4 && (
+          {currentStep === 3 && (
             <SuccessScreen 
               onDownload={handleDownload}
               onStartOver={handleStartOver}

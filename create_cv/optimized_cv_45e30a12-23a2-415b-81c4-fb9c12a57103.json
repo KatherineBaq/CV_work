@@ -1,0 +1,47 @@
+{
+  "personal": {
+    "name": "Martin Dupont",
+    "title": "Senior Data Engineer",
+    "email": "martin.dupont@example.com",
+    "phone": "+32 xxx xx xx xx",
+    "location": "City, Country",
+    "summary": "Experienced Data Engineer with a proven track record in developing scalable data pipelines, implementing DevOps practices, and enhancing team capabilities through effective communication and training. Proficient in Python and experienced with Microsoft Fabric and Medallion Architectures."
+  },
+  "education": [
+    {
+      "degree": "Master's Degree in Computer Science",
+      "school": "Institution Name",
+      "start": "YYYY",
+      "end": "YYYY"
+    }
+  ],
+  "experience": [
+    {
+      "title": "Full-Stack Developer",
+      "company": "TechWave Solutions",
+      "start": "2021",
+      "end": "Present",
+      "summary": "Led the development and maintenance of CI/CD pipelines and Docker containerization, aligning with DevOps practices. Mentored junior developers, fostering a culture of learning and collaboration. Gained exposure to data pipeline development, laying the groundwork for advanced data engineering projects."
+    },
+    {
+      "title": "Web Developer",
+      "company": "DigitalFactory",
+      "start": "2018",
+      "end": "2020",
+      "summary": "Collaborated in a team to develop and deploy scalable web applications, honing my problem-solving and teamwork skills. This role provided a solid foundation in software development principles, relevant to building robust data engineering solutions."
+    }
+  ],
+  "skills": [
+    "Python programming",
+    "Developing data pipelines",
+    "DevOps practices and tools",
+    "Communication and training skills",
+    "Microsoft Fabric",
+    "Medallion Architectures",
+    "Notebooks"
+  ],
+  "links": {
+    "linkedin": "linkedin.com/in/martindupont",
+    "github": "github.com/martindupont"
+  }
+}
