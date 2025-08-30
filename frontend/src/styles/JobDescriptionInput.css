@@ -1,0 +1,81 @@
+.job-description-input {
+  text-align: center;
+}
+
+.job-description-input h2 {
+  margin-bottom: 10px;
+}
+
+.job-description-input p {
+  margin-bottom: 30px;
+  color: #666;
+}
+
+.job-description-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+  resize: vertical;
+  margin-bottom: 10px;
+  font-family: inherit;
+}
+
+.job-description-textarea:focus {
+  border-color: #4caf50;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.character-count {
+  text-align: right;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.error-message {
+  color: #f44336;
+  margin-bottom: 20px;
+}
+
+.buttons-container {
+  display: flex;
+  justify-content: space-between;
+}
+
+.secondary-button {
+  background-color: #f1f1f1;
+  color: #333;
+  border: none;
+  padding: 12px 24px;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.secondary-button:hover {
+  background-color: #e0e0e0;
+}
+
+.primary-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.primary-button:hover {
+  background-color: #45a049;
+}
+
+.primary-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
