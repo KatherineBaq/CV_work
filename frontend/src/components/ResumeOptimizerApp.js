@@ -57,12 +57,27 @@ const apiService = {
     }
     
     const data = await response.json();
-    
-    const jsonBlob = new Blob([JSON.stringify(data.cv_data, null, 2)], { 
-      type: 'application/json' 
+    return data;
+  },
+
+  generateFinalCV: async (analysisId, templateId) => {
+    const response = await fetch(`${API_BASE_URL}/generate-final-cv`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        analysis_id: analysisId,
+        template_id: templateId,
+      }),
     });
     
-    return jsonBlob;
+    if (!response.ok) {
+      throw new Error('Failed to generate final CV');
+    }
+    
+    // Return blob for PDF download
+    return await response.blob();
   }
 };
 
@@ -205,11 +220,7 @@ const ResultsDisplay = ({ results, onAnswerSubmit, isGenerating }) => {
         <div className="mb-6">
           <h4 className="font-semibold text-gray-800 mb-3">Key Recommendations:</h4>
           <ul className="space-y-2">
-            {(results.recommendations || [
-              'Highlight your project management experience',
-              'Add more specific technical skills mentioned in the job posting',
-              'Emphasize your leadership and team collaboration abilities'
-            ]).map((rec, index) => (
+            {(results.recommendations || []).map((rec, index) => (
               <li key={index} className="flex items-start">
                 <ArrowRight className="w-4 h-4 text-blue-500 mt-0.5 mr-2 flex-shrink-0" />
                 <span className="text-gray-700">{rec}</span>
@@ -230,10 +241,7 @@ const ResultsDisplay = ({ results, onAnswerSubmit, isGenerating }) => {
         </p>
         
         <div className="space-y-4">
-          {(results.missing_skills || [
-            "Microsoft Fabric",
-            "Medallion Architecture"
-          ]).map((skill, index) => (
+          {(results.missing_skills || []).map((skill, index) => (
             <div key={index} className="flex items-center bg-amber-50 p-4 rounded-lg border border-amber-100">
               <div className="w-2 h-2 bg-amber-500 rounded-full mr-3"></div>
               <div className="flex-grow">
@@ -261,12 +269,102 @@ const ResultsDisplay = ({ results, onAnswerSubmit, isGenerating }) => {
           {isGenerating ? (
             <>
               <Clock className="w-5 h-5 animate-spin mr-2" />
-              Generating Optimized Resume...
+              Generating Optimized Resume Data...
             </>
           ) : (
             <>
               <FileText className="w-5 h-5 mr-2" />
-              Generate Optimized Resume
+              Continue to Template Selection
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Template Selector Component
+const TemplateSelector = ({ selectedTemplate, onSelect, onGenerate, isGenerating }) => {
+
+  const templates = [
+  {
+    id: 'template1',
+    name: 'Professional Template',
+    description: 'Clean, professional design with clear sections and easy readability',
+    preview: `${API_BASE_URL}/template-preview/template1`,
+    docFile: 'template1.docx'
+  },
+  {
+    id: 'template2',
+    name: 'Modern Template', 
+    description: 'Contemporary design with colorful accents and modern layout',
+    preview: `${API_BASE_URL}/template-preview/template2`,
+    docFile: 'template2.docx'
+  }
+];
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">
+        Choose Your Resume Template
+      </h2>
+      
+      <p className="text-gray-600 text-center mb-8">
+        Select a template that best represents your professional style
+      </p>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {templates.map(template => (
+          <div 
+            key={template.id}
+            onClick={() => onSelect(template.id)}
+            className={`border-2 rounded-lg p-6 cursor-pointer transition-all ${
+              selectedTemplate === template.id 
+                ? 'border-blue-500 bg-blue-50 shadow-md' 
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className="aspect-w-4 aspect-h-3 mb-4 overflow-hidden rounded-md bg-gray-100">
+              <img 
+                src={template.preview}
+                alt={template.name}
+                className="w-full h-48 object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentNode.innerHTML = `<div class="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center"><span class="text-gray-500 font-medium">${template.name}</span></div>`;
+                }}
+              />
+            </div>
+            
+            <h3 className="font-semibold text-lg mb-2 flex items-center">
+              {template.name}
+              {selectedTemplate === template.id && (
+                <CheckCircle className="w-5 h-5 text-blue-500 ml-2" />
+              )}
+            </h3>
+            
+            <p className="text-gray-600 text-sm">
+              {template.description}
+            </p>
+          </div>
+        ))}
+      </div>
+      
+      <div className="flex justify-center">
+        <button
+          onClick={onGenerate}
+          disabled={!selectedTemplate || isGenerating}
+          className="bg-green-600 text-white py-3 px-8 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+        >
+          {isGenerating ? (
+            <>
+              <Clock className="w-5 h-5 animate-spin mr-2" />
+              Generating Final CV...
+            </>
+          ) : (
+            <>
+              <Download className="w-5 h-5 mr-2" />
+              Generate Final CV
             </>
           )}
         </button>
@@ -276,18 +374,18 @@ const ResultsDisplay = ({ results, onAnswerSubmit, isGenerating }) => {
 };
 
 // Success component
-const SuccessScreen = ({ onDownload, onStartOver }) => (
+const SuccessScreen = ({ onDownload, onStartOver, finalCVBlob }) => (
   <div className="text-center">
     <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
       <CheckCircle className="w-12 h-12 text-green-600" />
     </div>
     
     <h2 className="text-2xl font-bold text-gray-800 mb-4">
-      Your Optimized Resume is Ready!
+      Your Optimized CV is Ready!
     </h2>
     
     <p className="text-gray-600 mb-8">
-      Your resume has been tailored specifically for this job posting with improved keyword matching and enhanced formatting.
+      Your resume has been tailored specifically for this job posting and formatted with your selected template.
     </p>
     
     <div className="space-y-4 max-w-md mx-auto">
@@ -296,14 +394,14 @@ const SuccessScreen = ({ onDownload, onStartOver }) => (
         className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center"
       >
         <Download className="w-5 h-5 mr-2" />
-        Download Optimized Resume JSON
+        Download Your Optimized CV
       </button>
       
       <button
         onClick={onStartOver}
         className="w-full border border-gray-300 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
       >
-        Optimize Another Resume
+        Create Another CV
       </button>
     </div>
   </div>
@@ -317,16 +415,18 @@ const ResumeOptimizerApp = () => {
   const [results, setResults] = useState(null);
   const [cvId, setCvId] = useState(null);
   const [analysisId, setAnalysisId] = useState(null);
-  const [optimizedResumeBlob, setOptimizedResumeBlob] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [finalCVBlob, setFinalCVBlob] = useState(null);
   const [userConfirmedSkills, setUserConfirmedSkills] = useState([]);
   
   // Loading states
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingFinal, setIsGeneratingFinal] = useState(false);
   const [error, setError] = useState(null);
 
-  const steps = ['Upload CV', 'Job Description', 'Analysis & Questions', 'Download Resume'];
+  const steps = ['Upload CV', 'Job Description', 'Analysis & Questions', 'Choose Template', 'Download CV'];
 
   const handleFileSelect = (file) => {
     setSelectedFile(file);
@@ -381,27 +481,46 @@ const ResumeOptimizerApp = () => {
 
     setIsGenerating(true);
     try {
-      // Store confirmed skills for later use
+      // Store confirmed skills
       setUserConfirmedSkills(confirmedSkills);
       
-      // Generate optimized resume
-      const resumeBlob = await apiService.generateOptimizedResume(analysisId, confirmedSkills);
-      setOptimizedResumeBlob(resumeBlob);
-      setCurrentStep(3); // Go to success screen
+      // Generate optimized resume data
+      const resumeData = await apiService.generateOptimizedResume(analysisId, confirmedSkills);
+      
+      // Move to template selection
+      setCurrentStep(3);
     } catch (err) {
-      setError('Failed to generate resume. Please try again.');
+      setError('Failed to generate resume data. Please try again.');
       console.error('Generation error:', err);
     } finally {
       setIsGenerating(false);
     }
   };
 
+  const handleTemplateSelect = (templateId) => {
+    setSelectedTemplate(templateId);
+  };
+
+  const handleGenerateFinalCV = async () => {
+    setIsGeneratingFinal(true);
+    try {
+      const cvBlob = await apiService.generateFinalCV(analysisId, selectedTemplate);
+      setFinalCVBlob(cvBlob);
+      setCurrentStep(4);
+    } catch (err) {
+      setError('Failed to generate final CV. Please try again.');
+      console.error('Final generation error:', err);
+    } finally {
+      setIsGeneratingFinal(false);
+    }
+  };
+
   const handleDownload = () => {
-    if (optimizedResumeBlob) {
-      const url = URL.createObjectURL(optimizedResumeBlob);
+    if (finalCVBlob) {
+      const url = URL.createObjectURL(finalCVBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'optimized_resume_data.json';
+      a.download = 'optimized_cv.pdf';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -416,7 +535,8 @@ const ResumeOptimizerApp = () => {
     setResults(null);
     setCvId(null);
     setAnalysisId(null);
-    setOptimizedResumeBlob(null);
+    setSelectedTemplate(null);
+    setFinalCVBlob(null);
     setUserConfirmedSkills([]);
     setError(null);
   };
@@ -500,11 +620,21 @@ const ResumeOptimizerApp = () => {
               isGenerating={isGenerating}
             />
           )}
-          
+
           {currentStep === 3 && (
+            <TemplateSelector 
+              selectedTemplate={selectedTemplate}
+              onSelect={handleTemplateSelect}
+              onGenerate={handleGenerateFinalCV}
+              isGenerating={isGeneratingFinal}
+            />
+          )}
+          
+          {currentStep === 4 && (
             <SuccessScreen 
               onDownload={handleDownload}
               onStartOver={handleStartOver}
+              finalCVBlob={finalCVBlob}
             />
           )}
         </div>

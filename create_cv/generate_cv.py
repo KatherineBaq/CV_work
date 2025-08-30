@@ -17,8 +17,8 @@ def convert_to_pdf(input_docx: str, output_pdf: str) -> None:
     convert(input_docx, output_pdf)
 
 def main():
-    # templates = ["template1.docx", "template2.docx", "template3.docx"]
-    templates = ["template1.docx"]
+    templates = ["template1.docx", "template2.docx"]
+    # templates = ["template1.docx"]
     data_path = "optimized_input_data.json"
     out_dir = "out"
     Path(out_dir).mkdir(exist_ok=True)
