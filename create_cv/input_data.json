@@ -1,0 +1,23 @@
+{
+  "personal": {
+    "name": "Alex Doe",
+    "title": "Data Analyst",
+    "email": "alex@example.com",
+    "phone": "+32 470 12 34 56",
+    "location": "Brussels, BE",
+    "summary": "Analyst with 5+ years in BI and Python."
+  },
+  "education": [
+    {"degree": "MSc Data Science", "school": "KU Leuven", "start": "2018", "end": "2020"},
+    {"degree": "BSc Economics", "school": "ULB", "start": "2015", "end": "2018"}
+  ],
+  "experience": [
+    {"title": "Data Analyst", "company": "Acme SA", "start": "2022", "end": "Present", "summary": "Built dashboards; automated ETL in Python."},
+    {"title": "BI Intern", "company": "Contoso", "start": "2020", "end": "2022", "summary": "Maintained Power BI reports; SQL modeling."}
+  ],
+  "skills": ["Python", "Pandas", "SQL", "Power BI", "ETL", "Statistics"],
+  "links": {
+    "linkedin": "linkedin.com/in/alex",
+    "github": "github.com/alex"
+  }
+}
