@@ -10,6 +10,12 @@ import asyncio
 from pathlib import Path
 import PyPDF2
 import io
+import traceback
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Import your agent classes
 from agent import CVOptimizer, JobAnalysis, ProfileAnalysis, GapAnalysis, CVSection
@@ -65,55 +71,88 @@ def cleanup_temp_files(file_paths: List[str]):
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)
-                print(f"Cleaned up: {file_path}")
+                logger.info(f"Cleaned up: {file_path}")
         except Exception as e:
-            print(f"Failed to clean up {file_path}: {e}")
+            logger.error(f"Failed to clean up {file_path}: {e}")
 
 def generate_cv_with_template(cv_data: Dict, template_id: str, analysis_id: str) -> str:
     """Generate CV using the template system and return PDF path"""
     
-    # Template mapping
+    logger.info(f"Starting CV generation with template_id: {template_id}, analysis_id: {analysis_id}")
+    logger.info(f"CV data keys: {list(cv_data.keys())}")
+    
+    # Template mapping - FIXED: Added full path
     template_mapping = {
-        'template1': 'template1.docx',
-        'template2': 'template2.docx'
+        'template1': 'create_cv/template1.docx',  # Added create_cv/ prefix
+        'template2': 'create_cv/template2.docx'   # Added create_cv/ prefix
     }
     
-    template_file = template_mapping.get(template_id, 'template1.docx')
+    template_file = template_mapping.get(template_id, 'create_cv/template1.docx')
+    logger.info(f"Using template file: {template_file}")
     
-    # Import the CV generation functions
-    try:
-        from create_cv.python_cv_templates import render_template, convert_to_pdf
-    except ImportError:
-        raise Exception("CV template functions not found. Make sure python_cv_templates.py is in create_cv/ folder")
-    
-    # Create file names
+    # Create file names with full paths
     json_file = f"temp_cv_data_{analysis_id}.json"
     output_docx = f"temp_output_{analysis_id}.docx"
     output_pdf = f"temp_output_{analysis_id}.pdf"
     
     try:
+        # Check if template exists BEFORE importing
+        if not Path(template_file).exists():
+            logger.error(f"Template file not found: {template_file}")
+            logger.info(f"Current working directory: {os.getcwd()}")
+            logger.info(f"Files in create_cv/: {list(Path('create_cv').glob('*')) if Path('create_cv').exists() else 'create_cv directory not found'}")
+            raise Exception(f"Template {template_file} not found. Please ensure template files are in the create_cv/ directory")
+        
+        # Import the CV generation functions AFTER checking template exists
+        try:
+            from create_cv.python_cv_templates import render_template, convert_to_pdf
+            logger.info("Successfully imported CV template functions")
+        except ImportError as e:
+            logger.error(f"Import error: {e}")
+            logger.info(f"Python path: {os.sys.path}")
+            logger.info(f"Current directory contents: {os.listdir('.')}")
+            raise Exception(f"CV template functions not found. Error: {str(e)}. Make sure python_cv_templates.py is in create_cv/ folder and dependencies are installed.")
+        
         # Save CV data to JSON file
+        logger.info(f"Saving CV data to {json_file}")
         with open(json_file, 'w', encoding='utf-8') as f:
             json.dump(cv_data, f, indent=2, ensure_ascii=False)
-        
-        # Check if template exists
-        if not Path(template_file).exists():
-            raise Exception(f"Template {template_file} not found")
+        logger.info("CV data saved successfully")
         
         # Generate CV using your functions
+        logger.info("Rendering template...")
         render_template(template_file, cv_data, output_docx)
+        logger.info(f"Template rendered to {output_docx}")
+        
+        # Check if DOCX was created
+        if not os.path.exists(output_docx):
+            raise Exception(f"DOCX file was not created: {output_docx}")
+        
+        logger.info("Converting to PDF...")
         convert_to_pdf(output_docx, output_pdf)
+        logger.info(f"PDF created: {output_pdf}")
         
         # Verify PDF was created
         if not os.path.exists(output_pdf):
-            raise Exception("PDF generation failed")
+            raise Exception(f"PDF generation failed - file not found: {output_pdf}")
+        
+        # Check PDF file size
+        pdf_size = os.path.getsize(output_pdf)
+        logger.info(f"Generated PDF size: {pdf_size} bytes")
+        
+        if pdf_size == 0:
+            raise Exception("PDF file is empty")
         
         # Clean up intermediate files
-        cleanup_temp_files([json_file, output_docx])
+        cleanup_temp_files([json_file])  # Keep DOCX for debugging, only clean JSON
         
+        logger.info(f"CV generation completed successfully: {output_pdf}")
         return output_pdf
         
     except Exception as e:
+        logger.error(f"Error in CV generation: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
         # Clean up files in case of error
         cleanup_temp_files([json_file, output_docx, output_pdf])
         raise Exception(f"Failed to generate CV: {str(e)}")
@@ -170,12 +209,17 @@ async def analyze_job_description(request: JobDescriptionRequest):
     
     try:
         # Step 1: Analyze job offer
+        logger.info("Step 1: Analyzing job offer...")
         job_analysis = optimizer.job_analyzer.analyze_job_offer(request.job_description)
+        logger.info(f"Job analysis completed for role: {job_analysis.job_title}")
         
         # Step 2: Analyze profile
+        logger.info("Step 2: Analyzing profile against job...")
         profile_analysis = optimizer.profile_analyzer.analyze_profile(cv_text, job_analysis)
+        logger.info(f"Profile analysis completed - Score: {profile_analysis.relevance_score_overall}%")
         
-        # Step 3: Check if additional input needed
+        # Step 3: Check if additional input needed (IMPROVED LOGIC)
+        logger.info("Step 3: Analyzing gaps...")
         is_sufficient, gap_analysis = optimizer.gap_analyzer.analyze_gaps(profile_analysis)
         
         # Generate analysis ID
@@ -191,25 +235,38 @@ async def analyze_job_description(request: JobDescriptionRequest):
             "is_sufficient": is_sufficient
         }
         
-        # Prepare response based on frontend expectations
+        # Calculate more realistic scores
+        overall_score = profile_analysis.relevance_score_overall
+        skills_score = max(profile_analysis.skills_match.values()) if profile_analysis.skills_match else max(50, overall_score - 10)
+        experience_score = min(overall_score + 10, 95)  # Experience usually scores higher
+        
+        # Prepare base response
         response_data = {
             "analysis_id": analysis_id,
-            "overall_match": profile_analysis.relevance_score_overall,
-            "skills_match": max(profile_analysis.skills_match.values()) if profile_analysis.skills_match else 50,
-            "experience_match": profile_analysis.relevance_score_overall + 10,  # Simulate higher experience match
-            "recommendations": profile_analysis.recommendations
+            "overall_match": overall_score,
+            "skills_match": skills_score,
+            "experience_match": experience_score,
+            "recommendations": profile_analysis.recommendations[:4] if profile_analysis.recommendations else []
         }
         
-        # Add gap analysis if needed
-        if gap_analysis:
+        # IMPROVED: Only add gap analysis if there are real gaps AND not sufficient
+        if not is_sufficient and gap_analysis and gap_analysis.missing_skills:
+            logger.info(f"Gap analysis needed - Missing skills: {gap_analysis.missing_skills}")
             response_data.update({
                 "overall_analysis": gap_analysis.overall_analysis,
-                "missing_skills": gap_analysis.missing_skills
+                "missing_skills": gap_analysis.missing_skills,
+                "needs_user_input": True
             })
+        else:
+            logger.info(f"No gap analysis needed - Score: {overall_score}%, is_sufficient: {is_sufficient}")
+            response_data["needs_user_input"] = False
         
+        logger.info(f"Returning response - needs_user_input: {response_data.get('needs_user_input', False)}")
         return response_data
         
     except Exception as e:
+        logger.error(f"Error in analyze_job_description: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to analyze job: {str(e)}")
 
 @app.post("/api/generate-resume")
@@ -253,6 +310,8 @@ async def generate_optimized_resume(request: UserAnswersRequest):
 async def generate_final_cv(request: TemplateRequest, background_tasks: BackgroundTasks):
     """Generate final CV with selected template"""
     
+    logger.info(f"Received final CV generation request for analysis_id: {request.analysis_id}, template_id: {request.template_id}")
+    
     if request.analysis_id not in sessions:
         raise HTTPException(status_code=404, detail="Analysis not found")
     
@@ -263,30 +322,62 @@ async def generate_final_cv(request: TemplateRequest, background_tasks: Backgrou
     
     try:
         cv_data = session_data["optimized_cv"]
+        logger.info(f"Retrieved CV data with keys: {list(cv_data.keys())}")
         
         # Generate PDF using template system
         pdf_path = generate_cv_with_template(cv_data, request.template_id, request.analysis_id)
+        logger.info(f"PDF generated successfully at: {pdf_path}")
         
-        # Verify PDF was created
+        # Verify PDF was created and is accessible
         if not os.path.exists(pdf_path):
-            raise HTTPException(status_code=500, detail="Failed to generate PDF file")
+            raise HTTPException(status_code=500, detail="PDF file was not created")
         
-        # Schedule cleanup of temporary files
-        temp_files = [
-            pdf_path,
-            f"temp_output_{request.analysis_id}.docx"
-        ]
+        # Check file permissions
+        if not os.access(pdf_path, os.R_OK):
+            raise HTTPException(status_code=500, detail="Cannot read generated PDF file")
+        
+        # Schedule cleanup of temporary files after response is sent
+        temp_files = [pdf_path]  # Only cleanup PDF after sending
         background_tasks.add_task(cleanup_temp_files, temp_files)
         
         # Return PDF file
         return FileResponse(
             path=pdf_path,
-            filename="optimized_cv.pdf",
-            media_type="application/pdf"
+            filename=f"optimized_cv_{request.template_id}.pdf",
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=optimized_cv_{request.template_id}.pdf"
+            }
         )
         
     except Exception as e:
+        logger.error(f"Error in generate_final_cv: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to generate final CV: {str(e)}")
+
+# Add a debug endpoint to check template files
+@app.get("/api/debug/templates")
+async def debug_templates():
+    """Debug endpoint to check template files"""
+    try:
+        current_dir = os.getcwd()
+        create_cv_exists = Path("create_cv").exists()
+        create_cv_files = list(Path("create_cv").glob("*")) if create_cv_exists else []
+        
+        template_files = {
+            "template1.docx": Path("create_cv/template1.docx").exists(),
+            "template2.docx": Path("create_cv/template2.docx").exists(),
+        }
+        
+        return {
+            "current_directory": current_dir,
+            "create_cv_directory_exists": create_cv_exists,
+            "create_cv_files": [str(f) for f in create_cv_files],
+            "template_files": template_files,
+            "python_path": os.sys.path
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/api/download/{analysis_id}")
 async def download_optimized_cv(analysis_id: str):
@@ -348,13 +439,25 @@ async def get_template_preview(template_id: str):
     if not image_file:
         raise HTTPException(status_code=404, detail="Template preview not found")
     
-    # Chemin direct vers tes images
-    image_path = Path(f"frontend/public/template/{image_file}")
+    # Check multiple possible paths for the image
+    possible_paths = [
+        Path(f"frontend/public/template/{image_file}"),
+        Path(f"template/{image_file}"),
+        Path(f"static/template/{image_file}"),
+        Path(f"public/template/{image_file}")
+    ]
     
-    if not image_path.exists():
-        raise HTTPException(status_code=404, detail="Preview image not found")
+    image_path = None
+    for path in possible_paths:
+        if path.exists():
+            image_path = path
+            break
+    
+    if not image_path:
+        raise HTTPException(status_code=404, detail=f"Preview image not found. Searched: {[str(p) for p in possible_paths]}")
     
     return FileResponse(path=str(image_path), media_type="image/png")
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():

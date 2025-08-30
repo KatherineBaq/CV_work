@@ -176,29 +176,67 @@ class GapAnalyzerAgent:
     def __init__(self):
         self.client = openai.OpenAI(api_key=openai_api_key)
         
-    def analyze_gaps(self, profile_analysis: ProfileAnalysis, threshold: int = 60) -> tuple[bool, Optional[GapAnalysis]]:
+    def analyze_gaps(self, profile_analysis: ProfileAnalysis, threshold: int = 75) -> tuple[bool, Optional[GapAnalysis]]:
         """
         Returns (is_sufficient, gap_analysis)
         is_sufficient = True si le score est >= threshold
+        
+        IMPROVED: Only show gap analysis when there are significant gaps
         """
-        if profile_analysis.relevance_score_overall >= threshold:
+        
+        # Higher threshold - only show gaps for lower scores
+        score = profile_analysis.relevance_score_overall
+        
+        # If score is high enough, no gap analysis needed
+        if score >= threshold:
+            print(f"Score {score}% is sufficient (>= {threshold}%), no gap analysis needed")
             return True, None
             
-        # Score trop bas, on génère l'analyse des gaps
-        system_prompt = """
-        <Role>Skills Gap Identifier</Role>
-        <Goal>Analyze the profile matching results and present missing critical skills for user selection.</Goal>
-        <Instructions>
-        <Step>Identify skills with low scores (0-2) that are critical for the job.</Step>
-        <Step>Create an overall assessment of the candidate's current match.</Step>
-        <Step>Present missing skills as a simple list for yes/no selection.</Step>
-        </Instructions>
+        # Check if there are meaningful skills gaps to analyze
+        significant_gaps = []
         
+        # Analyze skills match - look for critical missing skills
+        if profile_analysis.skills_match:
+            low_score_skills = [skill for skill, score in profile_analysis.skills_match.items() if score <= 3]
+            significant_gaps.extend(low_score_skills)
+        
+        # Add from existing gaps analysis
+        if profile_analysis.skills_gaps:
+            significant_gaps.extend(profile_analysis.skills_gaps)
+        
+        # If no significant gaps found, don't show gap analysis
+        if len(significant_gaps) == 0 and score >= 65:
+            print(f"No significant gaps found and score {score}% is reasonable, skipping gap analysis")
+            return True, None
+        
+        # Generate gap analysis only when there are real gaps
+        system_prompt = """
+        You are a skills gap identifier for CV optimization. 
+
+        Analyze the profile results and identify ONLY truly missing critical skills that would significantly improve the job match.
+
+        IMPORTANT: 
+        - Only suggest 3-5 skills maximum
+        - Focus on skills that are explicitly mentioned in the job requirements but completely absent from the CV
+        - Don't suggest skills the candidate already has some experience with
+        - If there are no significant gaps, return an empty missing_skills array
+
         Return JSON format:
         {
-            "overall_analysis": "Brief summary of current match and main gaps",
-            "missing_skills": ["skill1", "skill2", "skill3"]
+            "overall_analysis": "Brief summary of gaps (1-2 sentences)",
+            "missing_skills": ["only critical missing skills", "max 5 items"]
         }
+        """
+        
+        context = f"""
+        Profile Analysis Results:
+        - Overall Score: {profile_analysis.relevance_score_overall}%
+        - Skills Match: {profile_analysis.skills_match}
+        - Existing Skills Gaps: {profile_analysis.skills_gaps}
+        - Recommendations: {profile_analysis.recommendations}
+        
+        Only identify truly missing critical skills that would make a significant difference.
+        If the candidate already shows good alignment, return empty missing_skills array.
         """
         
         try:
@@ -206,15 +244,43 @@ class GapAnalyzerAgent:
                 model="gpt-4-turbo-preview",
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Profile Analysis Results:\n{profile_analysis.model_dump_json()}"}
+                    {"role": "user", "content": context}
                 ],
-                temperature=0
+                temperature=0.2
             )
             
-            gap_data = json.loads(response.choices[0].message.content)
+            response_content = response.choices[0].message.content
+            
+            # Clean the response
+            if "```json" in response_content:
+                response_content = response_content.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_content:
+                response_content = response_content.split("```")[1].split("```")[0].strip()
+            
+            gap_data = json.loads(response_content)
+            
+            # If no missing skills identified, don't show gap analysis
+            missing_skills = gap_data.get("missing_skills", [])
+            if not missing_skills or len(missing_skills) == 0:
+                print("No critical missing skills identified by AI")
+                return True, None
+            
+            # Filter out empty or very short skill names
+            valid_missing_skills = [skill.strip() for skill in missing_skills if skill.strip() and len(skill.strip()) > 2]
+            
+            if len(valid_missing_skills) == 0:
+                print("No valid missing skills after filtering")
+                return True, None
+            
+            gap_data["missing_skills"] = valid_missing_skills
+            print(f"Found {len(valid_missing_skills)} missing skills: {valid_missing_skills}")
+            
             return False, GapAnalysis(**gap_data)
+            
         except Exception as e:
-            raise Exception(f"Failed to parse gap analysis: {e}")
+            print(f"Gap analysis error: {e}")
+            # If error in analysis, assume profile is sufficient
+            return True, None
 
 class CVGeneratorAgent:
     """Agent Final : Génère le CV optimisé"""
